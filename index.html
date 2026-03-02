@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SugarSmart – Diabetes Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== AUTH SCREEN ===== -->
+  <div id="authScreen">
+    <div style="position:absolute;top:16px;right:16px;z-index:10">
+      <div class="toggle-wrap" onclick="toggleDark()">
+        <button class="toggle-track" id="authToggleTrack"></button>
+        <div class="toggle-thumb" id="authToggleThumb">☀️</div>
+      </div>
+    </div>
+    <div class="auth-bg-blob"></div>
+    <div class="auth-content">
+      <div class="auth-logo">
+        <span class="logo-pulse"></span>
+        🩺
+      </div>
+      <div class="auth-title">SugarSmart</div>
+      <div class="auth-sub">Your intelligent diabetes companion</div>
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tabLogin" onclick="setAuthMode('login')">Sign In</button>
+          <button class="auth-tab" id="tabSignup" onclick="setAuthMode('signup')">Sign Up</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" class="form-input" id="authEmail" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-input" id="authPassword" placeholder="Your password" autocomplete="current-password"/>
+        </div>
+        <div class="form-group" id="confirmGroup" style="display:none">
+          <label class="form-label">Confirm Password</label>
+          <input type="password" class="form-input" id="authConfirm" placeholder="Repeat password"/>
+        </div>
+        <button class="btn-primary" id="authSubmitBtn" onclick="handleEmailAuth()">Sign In</button>
+        <div class="auth-error" id="authError"></div>
+        <div class="auth-divider">or continue with</div>
+        <button class="btn-google" onclick="handleGoogleAuth()">
+          <span class="google-g"></span>
+          Google
+        </button>
+      </div>
+      <p class="auth-note">⚙️ Replace Firebase config in app.js to enable cloud sync. Works in demo mode without config.</p>
+    </div>
+  </div>
+
+  <!-- ===== MAIN APP ===== -->
+  <div id="mainApp">
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div class="topbar-brand">
+        <div class="topbar-logo">🩺</div>
+        <span class="topbar-title">SugarSmart</span>
+      </div>
+      <div class="topbar-right">
+        <!-- Device connection status -->
+        <div class="conn-status" id="connStatusBadge" onclick="switchTab('devices')" title="Devices">
+          <span id="connDot" class="conn-dot disconnected"></span>
+          <span id="connLabel" class="conn-label">No Device</span>
+        </div>
+        <div class="toggle-wrap" onclick="toggleDark()">
+          <button class="toggle-track" id="toggleTrack"></button>
+          <div class="toggle-thumb" id="toggleThumb">☀️</div>
+        </div>
+        <button onclick="handleSignOut()" class="signout-btn">Out</button>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content" id="mainContent">
+
+      <!-- ======= DASHBOARD ======= -->
+      <div class="page active" id="page-dashboard">
+        <div class="dash-hero">
+          <div class="dash-hero-date" id="heroDate"></div>
+          <div class="dash-hero-greeting" id="heroGreeting">Hello 👋</div>
+          <div class="dash-hero-sub" id="heroSub">Stay on track today!</div>
+        </div>
+
+        <div class="section-pad" style="padding-top:16px">
+
+          <!-- Glucose Card + Recommendation -->
+          <div class="card mb16 glucose-main-card">
+            <div class="glucose-card-top">
+              <div class="gauge-wrap">
+                <svg id="dashGaugeSvg" width="160" height="110" viewBox="0 0 160 110">
+                  <path d="M 20 100 A 60 60 0 1 1 140 100" fill="none" stroke="var(--border)" stroke-width="14" stroke-linecap="round"/>
+                  <path id="gaugeFill" d="M 20 100 A 60 60 0 1 1 140 100" fill="none" stroke="var(--success)" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 188.5" style="transition:stroke-dasharray 1s ease,stroke 0.4s;filter:drop-shadow(0 0 6px currentColor)"/>
+                  <text id="gaugeVal" x="80" y="80" text-anchor="middle" font-size="26" font-weight="800" fill="var(--text)" font-family="Syne,sans-serif">—</text>
+                  <text x="80" y="97" text-anchor="middle" font-size="10" fill="var(--text-light)" font-family="Manrope,sans-serif">mg/dL</text>
+                </svg>
+                <div id="trendChip" class="trend-chip">— Stable</div>
+                <div class="gauge-status-wrap">
+                  <span class="gauge-status" id="gaugeStatus">—</span>
+                </div>
+                <div class="gauge-time" id="gaugeTime"></div>
+              </div>
+
+              <!-- Action Recommendation Box -->
+              <div class="action-box" id="actionBox">
+                <div class="action-icon" id="actionIcon">💡</div>
+                <div class="action-title" id="actionTitle">No Reading</div>
+                <div class="action-desc" id="actionDesc">Log your glucose reading to get recommendations.</div>
+                <button class="action-cta" id="actionCta" onclick="switchTab('glucose')">+ Log Reading</button>
+              </div>
+            </div>
+
+            <!-- Status Reference -->
+            <div class="status-table">
+              <div class="status-row">
+                <span class="status-dot" style="background:var(--danger)"></span>
+                <span class="status-range">LOW &lt;70</span>
+                <span class="status-action" style="color:var(--danger)">🍬 Eat 15g carbs now</span>
+              </div>
+              <div class="status-row">
+                <span class="status-dot" style="background:var(--success)"></span>
+                <span class="status-range">NORMAL 70–180</span>
+                <span class="status-action" style="color:var(--success)">✅ Maintain routine</span>
+              </div>
+              <div class="status-row">
+                <span class="status-dot" style="background:var(--warning)"></span>
+                <span class="status-range">HIGH &gt;180</span>
+                <span class="status-action" style="color:var(--warning)">💉 Take insulin</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Goals -->
+          <div class="card mb16">
+            <div class="card-title">📊 Today's Goals</div>
+            <div class="prog-row">
+              <div class="prog-header">
+                <span class="prog-label">Carbohydrates</span>
+                <span class="prog-val" id="carbsVal">—</span>
+              </div>
+              <div class="prog-track"><div class="prog-fill" id="carbsFill" style="background:var(--primary);width:0%"></div></div>
+            </div>
+            <div class="prog-row">
+              <div class="prog-header">
+                <span class="prog-label">Sugar</span>
+                <span class="prog-val" id="sugarVal">—</span>
+              </div>
+              <div class="prog-track"><div class="prog-fill" id="sugarFill" style="background:var(--warning);width:0%"></div></div>
+            </div>
+            <div class="prog-row" style="margin-bottom:0">
+              <div class="prog-header">
+                <span class="prog-label">Calories</span>
+                <span class="prog-val" id="calVal">—</span>
+              </div>
+              <div class="prog-track"><div class="prog-fill" id="calFill" style="background:var(--success);width:0%"></div></div>
+            </div>
+          </div>
+
+          <!-- Quick Stats -->
+          <div class="stats-grid mb16">
+            <div class="card stat-card">
+              <div class="stat-icon">🍽️</div>
+              <div class="stat-num" id="statMeals" style="color:var(--primary)">0</div>
+              <div class="stat-lbl">Meals Today</div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon">💉</div>
+              <div class="stat-num" id="statReadings" style="color:var(--success)">0</div>
+              <div class="stat-lbl">Readings</div>
+            </div>
+          </div>
+
+          <!-- CGM Trend Graph (last 6 readings) -->
+          <div class="card mb16" id="trendCard">
+            <div class="card-title">📈 Glucose Trend</div>
+            <div id="miniTrendChart" class="mini-chart"></div>
+            <div class="trend-legend">
+              <span style="color:var(--success)">— Normal</span>
+              <span style="color:var(--danger)">— Low</span>
+              <span style="color:var(--warning)">— High</span>
+            </div>
+          </div>
+
+          <!-- Active Reminders -->
+          <div class="card mb16" id="dashRemindersCard">
+            <div class="card-title">🔔 Active Reminders</div>
+            <div id="dashRemindersList"></div>
+          </div>
+
+          <!-- Emergency -->
+          <button class="emergency-btn" onclick="showEmergency()">🚨 EMERGENCY ALERT</button>
+        </div>
+      </div>
+
+      <!-- ======= GLUCOSE PAGE ======= -->
+      <div class="page" id="page-glucose">
+        <div class="section-pad" style="padding-top:20px">
+          <div class="page-title">Blood Glucose 💉</div>
+          <div class="page-sub">Track and manage your glucose readings</div>
+
+          <div id="logBtnWrap">
+            <button class="btn-primary mb20" onclick="showLogForm()">+ Log New Reading</button>
+          </div>
+
+          <div class="card mb20 log-form" id="logForm">
+            <div class="card-title">New Reading</div>
+            <div class="form-group">
+              <label class="form-label">Blood Sugar (mg/dL)</label>
+              <input type="number" class="form-input big" id="bgInput" placeholder="e.g. 120" inputmode="numeric"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Timing</label>
+              <select class="form-select" id="bgNote">
+                <option>Before Meal</option>
+                <option>After Meal</option>
+                <option>Fasting</option>
+                <option>Bedtime</option>
+                <option>Random</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Source</label>
+              <select class="form-select" id="bgSource">
+                <option value="manual">Manual Entry</option>
+                <option value="bgm">BGM (Meter)</option>
+                <option value="cgm">CGM (Sensor)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes (optional)</label>
+              <input type="text" class="form-input" id="bgNoteExtra" placeholder="e.g. Feeling tired"/>
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary" onclick="saveReading()" id="saveReadingBtn" style="flex:1">Save</button>
+              <button class="btn-secondary" onclick="hideLogForm()" style="flex:1">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Target ranges -->
+          <div class="card mb16">
+            <div class="card-title">Target Ranges</div>
+            <div class="range-row">
+              <div class="range-dot" style="background:var(--danger)"></div>
+              <span style="flex:1;color:var(--text-med)">Low (Hypoglycemia)</span>
+              <span style="color:var(--danger);font-weight:700">&lt; 70 mg/dL</span>
+            </div>
+            <div class="range-row">
+              <div class="range-dot" style="background:var(--success)"></div>
+              <span style="flex:1;color:var(--text-med)">Normal</span>
+              <span style="color:var(--success);font-weight:700">70–180 mg/dL</span>
+            </div>
+            <div class="range-row">
+              <div class="range-dot" style="background:var(--warning)"></div>
+              <span style="flex:1;color:var(--text-med)">Elevated</span>
+              <span style="color:var(--warning);font-weight:700">181–250 mg/dL</span>
+            </div>
+            <div class="range-row" style="margin-bottom:0">
+              <div class="range-dot" style="background:var(--danger)"></div>
+              <span style="flex:1;color:var(--text-med)">High (Hyperglycemia)</span>
+              <span style="color:var(--danger);font-weight:700">&gt; 250 mg/dL</span>
+            </div>
+          </div>
+
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px">Reading History</div>
+          <div id="glucoseHistory"><div class="loading-state">Loading readings</div></div>
+        </div>
+      </div>
+
+      <!-- ======= DEVICES PAGE ======= -->
+      <div class="page" id="page-devices">
+        <div class="section-pad" style="padding-top:20px">
+          <div class="page-title">Devices 📡</div>
+          <div class="page-sub">Connect your glucose monitoring devices</div>
+
+          <!-- BGM Card -->
+          <div class="card mb16 device-card" id="bgmCard">
+            <div class="device-header">
+              <div class="device-icon-box" style="background:color-mix(in srgb,var(--primary) 18%,transparent)">🩸</div>
+              <div style="flex:1">
+                <div class="device-name">Blood Glucose Meter</div>
+                <div class="device-sub">Portable finger-prick device · Bluetooth</div>
+              </div>
+              <span class="device-badge" id="bgmBadge">Disconnected</span>
+            </div>
+            <div class="device-body" id="bgmBody">
+              <p class="device-info">Connect your BGM to automatically sync readings via Bluetooth. Supports manual entry for non-Bluetooth meters.</p>
+              <div class="device-brands">
+                <span class="brand-chip">Accu-Chek</span>
+                <span class="brand-chip">OneTouch</span>
+                <span class="brand-chip">Contour</span>
+                <span class="brand-chip">FreeStyle</span>
+              </div>
+              <button class="btn-primary mt12" onclick="connectDevice('bgm')" id="bgmConnectBtn">🔵 Connect BGM</button>
+            </div>
+            <div class="device-connected-info" id="bgmConnectedInfo" style="display:none">
+              <div class="connected-row">
+                <span>📶 Signal Strength</span><span id="bgmSignal" style="color:var(--success);font-weight:700">Strong</span>
+              </div>
+              <div class="connected-row">
+                <span>🔋 Battery</span><span id="bgmBattery" style="font-weight:700">85%</span>
+              </div>
+              <div class="connected-row">
+                <span>📅 Last Sync</span><span id="bgmLastSync" style="font-weight:700">Just now</span>
+              </div>
+              <button class="btn-danger-outline mt12" onclick="disconnectDevice('bgm')">Disconnect</button>
+            </div>
+          </div>
+
+          <!-- CGM Card -->
+          <div class="card mb16 device-card" id="cgmCard">
+            <div class="device-header">
+              <div class="device-icon-box" style="background:color-mix(in srgb,var(--success) 18%,transparent)">📡</div>
+              <div style="flex:1">
+                <div class="device-name">Continuous Glucose Monitor</div>
+                <div class="device-sub">Wearable body sensor · Real-time</div>
+              </div>
+              <span class="device-badge" id="cgmBadge">Disconnected</span>
+            </div>
+            <div class="device-body" id="cgmBody">
+              <p class="device-info">Stream real-time glucose data from your CGM. View live readings even when your CGM display is off.</p>
+              <div class="device-brands">
+                <span class="brand-chip cgm-brand">FreeStyle Libre</span>
+                <span class="brand-chip cgm-brand">Dexcom</span>
+                <span class="brand-chip cgm-brand">Medtronic</span>
+              </div>
+              <div class="form-group mt12">
+                <label class="form-label">Select CGM Brand</label>
+                <select class="form-select" id="cgmBrandSelect">
+                  <option value="freestyle">FreeStyle Libre</option>
+                  <option value="dexcom">Dexcom G7</option>
+                  <option value="medtronic">Medtronic Guardian</option>
+                </select>
+              </div>
+              <button class="btn-success" onclick="connectDevice('cgm')" id="cgmConnectBtn">📡 Connect CGM</button>
+            </div>
+            <div class="device-connected-info" id="cgmConnectedInfo" style="display:none">
+              <div class="cgm-live-display">
+                <div class="cgm-live-val" id="cgmLiveVal">—</div>
+                <div class="cgm-live-unit">mg/dL · Live</div>
+                <div class="cgm-live-trend" id="cgmLiveTrend">→ Stable</div>
+              </div>
+              <div class="connected-row"><span>📡 Sensor</span><span id="cgmBrand" style="font-weight:700">FreeStyle Libre</span></div>
+              <div class="connected-row"><span>🔋 Sensor Life</span><span id="cgmLife" style="color:var(--success);font-weight:700">12 days left</span></div>
+              <div class="connected-row"><span>🔄 Refresh</span><span style="font-weight:700">Every 5 min</span></div>
+              <button class="btn-danger-outline mt12" onclick="disconnectDevice('cgm')">Disconnect Sensor</button>
+            </div>
+          </div>
+
+          <!-- Manual Sync -->
+          <div class="card mb16">
+            <div class="card-title">⚡ Quick Manual Entry</div>
+            <p style="font-size:13px;color:var(--text-med);margin-bottom:12px">For non-Bluetooth devices, enter your reading manually.</p>
+            <div class="form-group">
+              <label class="form-label">Blood Glucose (mg/dL)</label>
+              <input type="number" class="form-input big" id="manualBgInput" placeholder="e.g. 120" inputmode="numeric"/>
+            </div>
+            <button class="btn-primary" onclick="saveManualReading()">Save Reading</button>
+          </div>
+
+          <!-- Bluetooth scan animation area -->
+          <div class="card" id="btScanCard" style="display:none">
+            <div class="bt-scan-wrap">
+              <div class="bt-ring bt-ring-1"></div>
+              <div class="bt-ring bt-ring-2"></div>
+              <div class="bt-ring bt-ring-3"></div>
+              <div class="bt-icon">🔵</div>
+            </div>
+            <div class="bt-scan-label">Scanning for devices...</div>
+            <button class="btn-secondary mt12" onclick="cancelScan()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======= FOOD PAGE ======= -->
+      <div class="page" id="page-food">
+        <div class="section-pad" style="padding-top:20px">
+          <div class="page-title">Meal Log 🍽️</div>
+          <div class="page-sub">Log meals and track nutrition</div>
+
+          <div class="food-summary mb16">
+            <div>
+              <div class="food-sum-num" id="foodCarbs" style="color:var(--primary)">0g</div>
+              <div class="food-sum-lbl">CARBS</div>
+            </div>
+            <div class="food-sum-div"></div>
+            <div>
+              <div class="food-sum-num" id="foodSugar" style="color:var(--warning)">0g</div>
+              <div class="food-sum-lbl">SUGAR</div>
+            </div>
+            <div class="food-sum-div"></div>
+            <div>
+              <div class="food-sum-num" id="foodCal" style="color:var(--success)">0</div>
+              <div class="food-sum-lbl">CALORIES</div>
+            </div>
+            <div class="food-sum-div"></div>
+            <div>
+              <div class="food-sum-num" id="foodItems" style="color:var(--accent)">0</div>
+              <div class="food-sum-lbl">ITEMS</div>
+            </div>
+          </div>
+
+          <!-- Barcode Scanner Section -->
+          <div class="card mb16">
+            <div class="card-title">📷 Barcode Scanner</div>
+            <p style="font-size:13px;color:var(--text-med);margin-bottom:12px">Scan packaged food to instantly view carb & sugar content.</p>
+            <div id="barcodeArea">
+              <div class="barcode-placeholder" id="barcodePlaceholder" onclick="startBarcodeScanner()">
+                <div style="font-size:40px;margin-bottom:8px">📦</div>
+                <div style="font-size:13px;color:var(--text-light)">Tap to scan barcode</div>
+                <div style="font-size:11px;color:var(--text-light);margin-top:4px">Uses your camera</div>
+              </div>
+              <div id="barcodeScanner" style="display:none">
+                <video id="scannerVideo" autoplay playsinline style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"></video>
+                <div class="scan-overlay">
+                  <div class="scan-line"></div>
+                </div>
+                <button class="btn-secondary mt8" onclick="stopBarcodeScanner()">Cancel Scan</button>
+              </div>
+              <div id="barcodeResult" class="barcode-result" style="display:none"></div>
+            </div>
+          </div>
+
+          <!-- Add Meal Form -->
+          <div class="card mb16">
+            <div class="card-title">+ Add Meal</div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <input type="text" class="form-input" id="mealDescription" placeholder="e.g. Grilled chicken salad"/>
+            </div>
+            <div class="form-group">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+                <div>
+                  <label class="form-label">Carbs (g)</label>
+                  <input type="number" class="form-input" id="mealCarbs" placeholder="0" inputmode="numeric"/>
+                </div>
+                <div>
+                  <label class="form-label">Cal</label>
+                  <input type="number" class="form-input" id="mealCal" placeholder="0" inputmode="numeric"/>
+                </div>
+                <div>
+                  <label class="form-label">Sugar (g)</label>
+                  <input type="number" class="form-input" id="mealSugar" placeholder="0" inputmode="numeric"/>
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Photo (optional)</label>
+              <div class="photo-upload-area" id="photoUploadArea">
+                <input type="file" id="mealPhotoInput" accept="image/*" onchange="handlePhotoSelect(event)"/>
+                <div id="photoPlaceholder"><div style="font-size:28px;margin-bottom:6px">📷</div><div style="font-size:13px;color:var(--text-light)">Tap to add photo</div></div>
+                <img id="photoPreview" class="photo-preview" alt="Meal"/>
+              </div>
+              <div class="upload-progress" id="uploadProgress"><div class="upload-progress-bar" id="uploadProgressBar"></div></div>
+            </div>
+            <button class="btn-primary" onclick="addMeal()" id="addMealBtn">🍽️ Log Meal</button>
+          </div>
+
+          <!-- Quick Food DB -->
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px">Quick Add Foods</div>
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" id="foodSearch" placeholder="Search food..." oninput="filterFoods()"/>
+          </div>
+          <div id="foodList"></div>
+
+          <!-- Today's Meals -->
+          <div id="todayLogSection" style="display:none">
+            <div style="font-size:15px;font-weight:700;color:var(--text);margin:16px 0 12px">Today's Meals</div>
+            <div id="todayLog"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======= GOALS PAGE ======= -->
+      <div class="page" id="page-goals">
+        <div class="section-pad" style="padding-top:20px">
+          <div class="page-title">Health Goals 🎯</div>
+          <div class="page-sub">Personalize your daily targets</div>
+          <div id="goalsForm"></div>
+          <button class="btn-success mt8" onclick="saveGoals()">✅ Save Goals</button>
+          <div class="success-banner" id="goalsBanner">Goals saved successfully!</div>
+        </div>
+      </div>
+
+      <!-- ======= REMINDERS PAGE ======= -->
+      <div class="page" id="page-reminders">
+        <div class="section-pad" style="padding-top:20px">
+          <div class="page-title">Reminders 🔔</div>
+          <div class="page-sub">Never miss a check or medication</div>
+          <div class="card mb20">
+            <div class="card-title">Add Reminder</div>
+            <div class="form-group">
+              <label class="form-label">Type</label>
+              <div class="type-pills" id="reminderTypePills"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" class="form-input" id="reminderLabel" placeholder="e.g. Take metformin"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Time</label>
+              <input type="time" class="form-input" id="reminderTime" value="08:00" style="font-size:17px;font-weight:700;font-family:'DM Mono',monospace"/>
+            </div>
+            <button class="btn-primary" onclick="addReminder()">+ Add Reminder</button>
+          </div>
+          <div id="remindersList"></div>
+        </div>
+      </div>
+
+      <!-- ======= REPORT PAGE ======= -->
+      <div class="page" id="page-report">
+        <div class="section-pad" style="padding-top:20px">
+          <div class="page-title">Health Report 📋</div>
+          <div class="page-sub">Doctor-ready summary</div>
+
+          <div class="card mb16">
+            <div class="card-title">👤 Patient Information</div>
+            <table>
+              <tr><td style="color:var(--text-med)">Name</td><td style="font-weight:700;text-align:right" id="rptName">—</td></tr>
+              <tr><td style="color:var(--text-med)">Email</td><td style="font-weight:700;text-align:right;font-size:12px" id="rptEmail">—</td></tr>
+              <tr><td style="color:var(--text-med)">Devices</td><td style="font-weight:700;text-align:right" id="rptDevices">—</td></tr>
+              <tr><td style="color:var(--text-med)">Report Date</td><td style="font-weight:700;text-align:right" id="reportDate"></td></tr>
+            </table>
+          </div>
+
+          <div class="card mb16">
+            <div class="card-title">💉 Blood Glucose Summary</div>
+            <div class="report-grid">
+              <div class="report-stat">
+                <div class="report-num" id="rptTotal" style="color:var(--primary)">0</div>
+                <div class="report-lbl">Total Readings</div>
+              </div>
+              <div class="report-stat">
+                <div class="report-num" id="rptAvg" style="color:var(--text)">—</div>
+                <div class="report-lbl">Average BG</div>
+              </div>
+              <div class="report-stat">
+                <div class="report-num" id="rptHigh" style="color:var(--danger)">0</div>
+                <div class="report-lbl">High Episodes</div>
+              </div>
+              <div class="report-stat">
+                <div class="report-num" id="rptLow" style="color:var(--warning)">0</div>
+                <div class="report-lbl">Low Episodes</div>
+              </div>
+              <div class="report-stat">
+                <div class="report-num" id="rptTIR" style="color:var(--success)">—</div>
+                <div class="report-lbl">Time In Range</div>
+              </div>
+              <div class="report-stat">
+                <div class="report-num" id="rptGMI" style="color:var(--accent)">—</div>
+                <div class="report-lbl">Est. HbA1c</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mb16">
+            <div class="card-title">🍽️ Today's Nutrition</div>
+            <table>
+              <tr>
+                <td style="color:var(--text-med)">Total Carbohydrates</td>
+                <td style="text-align:right"><span id="rptCarbs" style="color:var(--primary);font-weight:700">0g</span> <span style="color:var(--text-light)" id="rptCarbGoal"></span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--text-med)">Total Sugar</td>
+                <td style="text-align:right"><span id="rptSugar" style="color:var(--warning);font-weight:700">0g</span> <span style="color:var(--text-light)" id="rptSugarGoal"></span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--text-med)">Total Calories</td>
+                <td style="text-align:right"><span id="rptCal" style="color:var(--success);font-weight:700">0 kcal</span> <span style="color:var(--text-light)" id="rptCalGoal"></span></td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="card mb16" id="rptReadingsCard">
+            <div class="card-title">📊 Reading Log</div>
+            <div style="overflow-x:auto">
+              <table>
+                <thead><tr><th>Value</th><th>Status</th><th>Timing</th><th>Source</th><th>Time</th></tr></thead>
+                <tbody id="rptReadingsBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <button class="btn-primary mb16" onclick="generateReport()" style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));font-size:16px;padding:15px">
+            📄 Generate PDF Report
+          </button>
+          <div class="success-banner" id="reportBanner">✅ Report ready! Share with your doctor.</div>
+        </div>
+      </div>
+
+    </div><!-- end content -->
+
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav" id="bottomNav">
+      <button class="nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
+        <div class="nav-icon-wrap">🏠</div>
+        <span class="nav-lbl">Home</span>
+        <div class="nav-dot"></div>
+      </button>
+      <button class="nav-btn" data-tab="glucose" onclick="switchTab('glucose')">
+        <div class="nav-icon-wrap">💉</div>
+        <span class="nav-lbl">Glucose</span>
+        <div class="nav-dot"></div>
+      </button>
+      <button class="nav-btn" data-tab="devices" onclick="switchTab('devices')">
+        <div class="nav-icon-wrap">📡</div>
+        <span class="nav-lbl">Devices</span>
+        <div class="nav-dot"></div>
+      </button>
+      <button class="nav-btn" data-tab="food" onclick="switchTab('food')">
+        <div class="nav-icon-wrap">🍽️</div>
+        <span class="nav-lbl">Meals</span>
+        <div class="nav-dot"></div>
+      </button>
+      <button class="nav-btn" data-tab="reminders" onclick="switchTab('reminders')">
+        <div class="nav-icon-wrap">🔔</div>
+        <span class="nav-lbl">Reminders</span>
+        <div class="nav-dot"></div>
+      </button>
+      <button class="nav-btn" data-tab="report" onclick="switchTab('report')">
+        <div class="nav-icon-wrap">📋</div>
+        <span class="nav-lbl">Report</span>
+        <div class="nav-dot"></div>
+      </button>
+    </div>
+
+  </div><!-- end mainApp -->
+</div><!-- end #app -->
+
+<!-- EMERGENCY OVERLAY -->
+<div class="emergency-overlay" id="emergencyOverlay">
+  <div class="emergency-modal">
+    <div class="emg-icon">🚨</div>
+    <div class="emg-title">EMERGENCY ALERT</div>
+    <div class="emg-text">Stay calm. Emergency contacts are being notified. Help is on the way.</div>
+    <div class="emg-contacts">
+      <div class="emg-contacts-title">📞 Emergency Contacts</div>
+      <div class="emg-contact">Dr. Johnson: +1 (555) 0100</div>
+      <div class="emg-contact">Family: +1 (555) 0101</div>
+      <div class="emg-contact">Emergency Services: 911</div>
+    </div>
+    <a href="tel:911" class="emg-dismiss" style="text-decoration:none;display:block;text-align:center;margin-bottom:10px;background:var(--danger)">📞 Call 911</a>
+    <button class="emg-dismiss" onclick="hideEmergency()" style="background:var(--text-med)">I'm OK — Dismiss</button>
+  </div>
+</div>
+
+<!-- CRITICAL LOW OVERLAY -->
+<div id="criticalLowOverlay">
+  <div class="critical-icon">⚠️</div>
+  <div class="critical-title">DANGER: LOW GLUCOSE!</div>
+  <div class="critical-sub">Eat 15g carbs or take glucose tablets NOW</div>
+  <div class="critical-val" id="criticalLowVal">—</div>
+  <div class="critical-unit">mg/dL — Dangerously Low</div>
+  <div class="critical-steps">
+    <div class="critical-step">1️⃣ Eat 15g fast carbs (juice, glucose tablet)</div>
+    <div class="critical-step">2️⃣ Wait 15 minutes, recheck glucose</div>
+    <div class="critical-step">3️⃣ If still low, call your doctor</div>
+  </div>
+  <button class="btn-call-doctor" onclick="window.location.href='tel:911'">📞 Call 911</button>
+  <button class="btn-call-doctor" style="background:rgba(255,255,255,0.9)" onclick="window.location.href='tel:+15550100'">📞 Call Doctor</button>
+  <button class="btn-dismiss-critical" onclick="dismissCritical()">I'm treating it — Dismiss</button>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="app.js" type="module"></script>
+</body>
+</html>
