@@ -1,12 +1,10 @@
 // ================================================================
-//  SugarSmart – app.js
-//  Firebase + full app logic
+//  SugarSmart – app.js v2
+//  Updated with: Splash, Connections, Profile, More Sheet
 // ================================================================
 
 // ================================================================
 //  🔥 FIREBASE CONFIGURATION
-//  Replace placeholders with your Firebase project config.
-//  Steps: console.firebase.google.com → Add web app → Copy config
 // ================================================================
 const firebaseConfig = {
   apiKey:            "YOUR_API_KEY",
@@ -52,13 +50,60 @@ if (FIREBASE_ENABLED) {
   db      = getFirestore(app);
   storage = getStorage(app);
 } else {
-  console.warn('SugarSmart: Running in DEMO MODE (no Firebase config)');
+  console.warn('SugarSmart: Running in DEMO MODE');
 }
 
-// ================================================================
-//  DEMO USER
-// ================================================================
 const DEMO_USER = { uid: 'demo', displayName: 'Sarah Johnson', email: 'sarah@demo.com' };
+
+// ================================================================
+//  SPLASH SCREEN
+// ================================================================
+const SPLASH_MESSAGES = [
+  'Initializing...', 'Loading health data...', 'Calibrating sensors...',
+  'Syncing readings...', 'Almost ready...', 'Welcome!'
+];
+
+function runSplash() {
+  const splash    = document.getElementById('splashScreen');
+  const bar       = document.getElementById('splashProgress');
+  const loadText  = document.getElementById('splashLoadingText');
+  const dots      = document.querySelectorAll('.splash-dot');
+
+  let pct = 0;
+  let msgIdx = 0;
+  let dotIdx = 0;
+
+  const interval = setInterval(() => {
+    pct += 1.2;
+    bar.style.width = Math.min(pct, 100) + '%';
+
+    if (pct > 20 && msgIdx === 0)  { loadText.textContent = SPLASH_MESSAGES[1]; msgIdx = 1; }
+    if (pct > 40 && msgIdx === 1)  { loadText.textContent = SPLASH_MESSAGES[2]; msgIdx = 2; dotIdx = 1; }
+    if (pct > 60 && msgIdx === 2)  { loadText.textContent = SPLASH_MESSAGES[3]; msgIdx = 3; dotIdx = 2; }
+    if (pct > 80 && msgIdx === 3)  { loadText.textContent = SPLASH_MESSAGES[4]; msgIdx = 4; }
+    if (pct > 95 && msgIdx === 4)  { loadText.textContent = SPLASH_MESSAGES[5]; msgIdx = 5; }
+
+    // Update dots
+    dots.forEach((d, i) => {
+      d.classList.toggle('active', i === Math.min(dotIdx, 2));
+    });
+
+    if (pct >= 100) {
+      clearInterval(interval);
+      setTimeout(() => {
+        splash.classList.add('hide');
+        setTimeout(() => {
+          splash.style.display = 'none';
+          // If Firebase: onAuthStateChanged handles it
+          // If demo: show auth screen
+          if (!FIREBASE_ENABLED) {
+            document.getElementById('authScreen').style.display = 'flex';
+          }
+        }, 600);
+      }, 300);
+    }
+  }, 30);
+}
 
 // ================================================================
 //  APP STATE
@@ -87,46 +132,20 @@ const state = {
   ],
 
   devices: {
-    bgm: { connected: false, signal: 'Strong', battery: '85%', lastSync: null },
-    cgm: { connected: false, brand: 'FreeStyle Libre', sensorLife: '12 days left', liveValue: null, trend: '→' },
+    bgm:     { connected: false, signal: 'Strong', battery: '85%', lastSync: null },
+    cgm:     { connected: false, brand: 'FreeStyle Libre', sensorLife: '12 days left', liveValue: null, trend: '→' },
+    fit:     { connected: false, steps: 0, hr: 0, sleep: 0, activeCal: 0 },
+    checker: { connected: false, lastReading: null, battery: '92%', todayCount: 0 },
+  },
+
+  profile: {
+    name: 'Sarah Johnson', age: '', weight: '', height: '',
+    diabetesType: '', doctor: 'Dr. Johnson', doctorPhone: '+1 (555) 0100',
+    medication: '', notes: '', avatarUrl: '',
   },
 
   selectedReminderType: 'Medication',
   selectedPhotoFile: null,
-};
-
-// ================================================================
-//  QUICK FOOD DATABASE
-// ================================================================
-const FOODS = [
-  { id:1,  name:'Oatmeal',            carbs:27,  calories:150, sugar:1,   gi:'Low',  icon:'🥣' },
-  { id:2,  name:'Apple',              carbs:25,  calories:95,  sugar:19,  gi:'Low',  icon:'🍎' },
-  { id:3,  name:'White Rice',         carbs:45,  calories:200, sugar:0,   gi:'High', icon:'🍚' },
-  { id:4,  name:'Grilled Chicken',    carbs:0,   calories:165, sugar:0,   gi:'None', icon:'🍗' },
-  { id:5,  name:'Orange Juice',       carbs:26,  calories:112, sugar:21,  gi:'High', icon:'🍊' },
-  { id:6,  name:'Whole Wheat Bread',  carbs:24,  calories:120, sugar:3,   gi:'Med',  icon:'🍞' },
-  { id:7,  name:'Banana',             carbs:27,  calories:105, sugar:14,  gi:'Med',  icon:'🍌' },
-  { id:8,  name:'Boiled Egg',         carbs:0.6, calories:78,  sugar:0.6, gi:'None', icon:'🥚' },
-  { id:9,  name:'Greek Yogurt',       carbs:9,   calories:100, sugar:7,   gi:'Low',  icon:'🥛' },
-  { id:10, name:'Brown Rice',         carbs:46,  calories:215, sugar:0.7, gi:'Med',  icon:'🍚' },
-  { id:11, name:'Sweet Potato',       carbs:26,  calories:112, sugar:5.4, gi:'Low',  icon:'🍠' },
-  { id:12, name:'Salmon',             carbs:0,   calories:208, sugar:0,   gi:'None', icon:'🐟' },
-  { id:13, name:'Broccoli',           carbs:6,   calories:31,  sugar:1.5, gi:'Low',  icon:'🥦' },
-  { id:14, name:'Avocado',            carbs:9,   calories:160, sugar:0.7, gi:'Low',  icon:'🥑' },
-  { id:15, name:'Strawberries (1 cup)',carbs:11, calories:49,  sugar:7,   gi:'Low',  icon:'🍓' },
-];
-
-// Simulated barcode database
-const BARCODE_DB = {
-  '012345678901': { name:'Nature Valley Granola Bar', carbs:29, calories:190, sugar:12, icon:'🍫' },
-  '023000006948': { name:'Tropicana Orange Juice',     carbs:26, calories:110, sugar:22, icon:'🍊' },
-  '038000138416': { name:'Special K Cereal',           carbs:23, calories:120, sugar:4,  icon:'🥣' },
-  '016000275010': { name:'Cheerios',                   carbs:29, calories:140, sugar:1,  icon:'🥣' },
-  '040000494157': { name:'Snickers Bar',               carbs:35, calories:280, sugar:27, icon:'🍬' },
-};
-
-const REMINDER_TYPES = {
-  Medication: '💊', Blood: '💉', Meal: '🍽️', Exercise: '🏃', Water: '💧', Other: '🔔',
 };
 
 // ================================================================
@@ -139,7 +158,6 @@ function todayStr() {
 function fmt(n) { return Math.round(n); }
 
 function getBGColor(v) {
-  if (v < 55)  return 'var(--danger)';
   if (v < 70)  return 'var(--danger)';
   if (v <= 180) return 'var(--success)';
   if (v <= 250) return 'var(--warning)';
@@ -164,37 +182,37 @@ function getGIColor(gi) {
 function getActionRecommendation(val) {
   if (val < 55) return {
     icon: '🚨', title: 'CRITICAL — Act Now!',
-    desc: 'Your glucose is dangerously low. Eat 15–20g of fast-acting carbs immediately (juice, glucose tablets, candy).',
+    desc: 'Your glucose is dangerously low. Eat 15–20g of fast-acting carbs immediately.',
     cta: '📞 Call Doctor', ctaFn: "window.location.href='tel:+15550100'",
     color: 'var(--danger)', bg: 'var(--danger-light)',
   };
   if (val < 70) return {
     icon: '🍬', title: 'Eat 15g Carbs Now',
-    desc: 'Your glucose is low. Eat 15g of fast carbs: 4 glucose tablets, ½ cup juice, or 3 hard candies.',
+    desc: 'Your glucose is low. Eat 15g of fast carbs: 4 glucose tablets or ½ cup juice.',
     cta: '+ Log Snack', ctaFn: "switchTab('food')",
     color: 'var(--danger)', bg: 'var(--danger-light)',
   };
   if (val <= 130) return {
     icon: '✅', title: 'Excellent Control',
-    desc: 'Your glucose is in the ideal range. Maintain your current routine, meals, and medication schedule.',
+    desc: 'Your glucose is in the ideal range. Maintain your current routine.',
     cta: '+ Log Reading', ctaFn: "showLogForm();switchTab('glucose')",
     color: 'var(--success)', bg: 'var(--success-light)',
   };
   if (val <= 180) return {
     icon: '👍', title: 'In Range — Good',
-    desc: 'Your glucose is normal. Keep monitoring and avoid high-GI foods for the next few hours.',
+    desc: 'Your glucose is normal. Avoid high-GI foods for the next few hours.',
     cta: '🍽️ View Meals', ctaFn: "switchTab('food')",
     color: 'var(--success)', bg: 'var(--success-light)',
   };
   if (val <= 250) return {
     icon: '⚠️', title: 'Elevated — Take Insulin',
-    desc: 'Your glucose is high. Consider taking insulin as prescribed. Drink water and avoid carbs.',
+    desc: 'Consider taking insulin as prescribed. Drink water and avoid carbs.',
     cta: '💉 Log Reading', ctaFn: "showLogForm();switchTab('glucose')",
     color: 'var(--warning)', bg: 'var(--warning-light)',
   };
   return {
     icon: '🚨', title: 'Dangerously High!',
-    desc: 'Your glucose is very high. Take insulin immediately and contact your doctor if readings stay elevated.',
+    desc: 'Take insulin immediately and contact your doctor.',
     cta: '📞 Call Doctor', ctaFn: "window.location.href='tel:+15550100'",
     color: 'var(--danger)', bg: 'var(--danger-light)',
   };
@@ -202,9 +220,7 @@ function getActionRecommendation(val) {
 
 function getTrendData(readings) {
   if (readings.length < 2) return { arrow: '→', label: 'Stable', color: 'var(--text-med)' };
-  const latest = readings[0].value;
-  const prev   = readings[1].value;
-  const diff   = latest - prev;
+  const diff = readings[0].value - readings[1].value;
   if (diff > 40)  return { arrow: '↑↑', label: 'Rising Fast',  color: 'var(--danger)' };
   if (diff > 15)  return { arrow: '↑',  label: 'Rising',       color: 'var(--warning)' };
   if (diff < -40) return { arrow: '↓↓', label: 'Falling Fast', color: 'var(--danger)' };
@@ -218,6 +234,22 @@ function showToast(msg, color) {
   t.style.background = color || 'var(--success)';
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function updateConnCountBadge() {
+  const count = [
+    state.devices.fit.connected,
+    state.devices.checker.connected,
+    state.devices.bgm.connected,
+    state.devices.cgm.connected,
+  ].filter(Boolean).length;
+  const badge = document.getElementById('connCountBadge');
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 // ================================================================
@@ -264,11 +296,11 @@ window.handleEmailAuth = async function() {
     }
   } catch(e) {
     const msgs = {
-      'auth/user-not-found':     'No account found with this email.',
-      'auth/wrong-password':     'Incorrect password.',
-      'auth/email-already-in-use': 'Email already registered. Sign in instead.',
-      'auth/invalid-email':      'Invalid email address.',
-      'auth/too-many-requests':  'Too many attempts. Try again later.',
+      'auth/user-not-found': 'No account found with this email.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/email-already-in-use': 'Email already registered.',
+      'auth/invalid-email': 'Invalid email address.',
+      'auth/too-many-requests': 'Too many attempts. Try again later.',
     };
     showAuthError(msgs[e.code] || e.message);
   } finally {
@@ -291,6 +323,7 @@ window.handleSignOut = async function() {
   if (cgmIntervalId) { clearInterval(cgmIntervalId); cgmIntervalId = null; }
   stopBarcodeScanner();
   currentUser = null;
+  closeMoreSheet();
   document.getElementById('mainApp').classList.remove('show');
   document.getElementById('authScreen').style.display = 'flex';
 };
@@ -302,6 +335,15 @@ async function onUserSignedIn(user) {
   currentUser = user;
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('mainApp').classList.add('show');
+
+  // Load profile from localStorage (demo fallback)
+  const savedProfile = localStorage.getItem('ss_profile');
+  if (savedProfile) {
+    try { Object.assign(state.profile, JSON.parse(savedProfile)); } catch(_) {}
+  } else {
+    state.profile.name  = user.displayName || 'User';
+    state.profile.email = user.email || '';
+  }
 
   if (FIREBASE_ENABLED && db) {
     await loadGoals();
@@ -320,13 +362,12 @@ function setupGlucoseListener() {
   if (!currentUser || !db) return;
   const col = collection(db, 'users', currentUser.uid, 'glucoseReadings');
   const q   = query(col, orderBy('ts', 'desc'), limit(50));
-
   glucoseUnsubscribe = onSnapshot(q, (snap) => {
     state.glucose = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderCurrentTab(state.currentTab);
     const latest = state.glucose[0];
     if (latest && latest.value < 55) triggerCriticalLow(latest.value);
-  }, (err) => console.error('Glucose listener:', err));
+  });
 }
 
 async function saveReadingToFirestore(reading) {
@@ -367,8 +408,7 @@ async function saveMealToFirestore(meal) {
 async function deleteMealFromFirestore(id) {
   state.meals = state.meals.filter(m => m.id !== id);
   if (!FIREBASE_ENABLED || !db || !currentUser) return;
-  try { await deleteDoc(doc(db, 'users', currentUser.uid, 'meals', id)); }
-  catch(e) { console.error('Delete meal:', e); }
+  try { await deleteDoc(doc(db, 'users', currentUser.uid, 'meals', id)); } catch(e) {}
 }
 
 // ================================================================
@@ -379,13 +419,12 @@ async function loadGoals() {
   try {
     const snap = await getDoc(doc(db, 'users', currentUser.uid, 'settings', 'goals'));
     if (snap.exists()) Object.assign(state.goals, snap.data());
-  } catch(e) { console.error('Load goals:', e); }
+  } catch(e) {}
 }
 
 async function saveGoalsToFirestore() {
   if (!FIREBASE_ENABLED || !db || !currentUser) return;
-  try { await setDoc(doc(db, 'users', currentUser.uid, 'settings', 'goals'), state.goals); }
-  catch(e) { console.error('Save goals:', e); }
+  try { await setDoc(doc(db, 'users', currentUser.uid, 'settings', 'goals'), state.goals); } catch(e) {}
 }
 
 // ================================================================
@@ -396,7 +435,7 @@ async function loadReminders() {
   try {
     const snap = await getDocs(collection(db, 'users', currentUser.uid, 'reminders'));
     if (!snap.empty) state.reminders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch(e) { console.error('Load reminders:', e); }
+  } catch(e) {}
 }
 
 async function saveReminderToFirestore(r) {
@@ -404,20 +443,18 @@ async function saveReminderToFirestore(r) {
     state.reminders.push({ id: 'r' + Date.now(), ...r });
     return;
   }
-  const ref = await addDoc(collection(db, 'users', currentUser.uid, 'reminders'), r);
-  state.reminders.push({ id: ref.id, ...r });
+  const ref2 = await addDoc(collection(db, 'users', currentUser.uid, 'reminders'), r);
+  state.reminders.push({ id: ref2.id, ...r });
 }
 
 async function updateReminderInFirestore(id, data) {
   if (!FIREBASE_ENABLED || !db || !currentUser) return;
-  try { await updateDoc(doc(db, 'users', currentUser.uid, 'reminders', id), data); }
-  catch(e) { console.error('Update reminder:', e); }
+  try { await updateDoc(doc(db, 'users', currentUser.uid, 'reminders', id), data); } catch(e) {}
 }
 
 async function deleteReminderFromFirestore(id) {
   if (!FIREBASE_ENABLED || !db || !currentUser) return;
-  try { await deleteDoc(doc(db, 'users', currentUser.uid, 'reminders', id)); }
-  catch(e) { console.error('Delete reminder:', e); }
+  try { await deleteDoc(doc(db, 'users', currentUser.uid, 'reminders', id)); } catch(e) {}
 }
 
 // ================================================================
@@ -444,14 +481,19 @@ async function uploadMealPhoto(file) {
 // ================================================================
 if (FIREBASE_ENABLED && auth) {
   onAuthStateChanged(auth, user => {
-    if (user) onUserSignedIn(user);
-    else {
+    if (user) {
+      // Wait for splash to finish
+      if (document.getElementById('splashScreen').style.display === 'none') {
+        onUserSignedIn(user);
+      } else {
+        // Queue it
+        document.addEventListener('splashDone', () => onUserSignedIn(user), { once: true });
+      }
+    } else {
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('mainApp').classList.remove('show');
     }
   });
-} else {
-  document.getElementById('authScreen').style.display = 'flex';
 }
 
 // ================================================================
@@ -474,23 +516,63 @@ window.toggleDark = function() {
 //  TAB SWITCHING
 // ================================================================
 window.switchTab = function(tab) {
+  // "more" is handled by sheet, not a page
+  if (tab === 'more') { openMoreSheet(); return; }
+
   state.currentTab = tab;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + tab).classList.add('active');
+  const pg = document.getElementById('page-' + tab);
+  if (pg) pg.classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('mainContent').scrollTop = 0;
+  closeMoreSheet();
   renderCurrentTab(tab);
 };
 
 function renderCurrentTab(tab) {
-  if (tab === 'dashboard') renderDashboard();
-  else if (tab === 'glucose')   renderGlucose();
-  else if (tab === 'devices')   renderDevices();
-  else if (tab === 'food')      renderFood();
-  else if (tab === 'goals')     renderGoals();
-  else if (tab === 'reminders') renderReminders();
-  else if (tab === 'report')    renderReport();
+  if (tab === 'dashboard')   renderDashboard();
+  else if (tab === 'glucose')     renderGlucose();
+  else if (tab === 'connections') renderConnections();
+  else if (tab === 'food')        renderFood();
+  else if (tab === 'goals')       renderGoals();
+  else if (tab === 'reminders')   renderReminders();
+  else if (tab === 'report')      renderReport();
+  else if (tab === 'profile')     renderProfile();
 }
+
+// ================================================================
+//  MORE SHEET
+// ================================================================
+window.openMoreSheet = function(target) {
+  const overlay = document.getElementById('moreSheetOverlay');
+  const sheet   = document.getElementById('moreSheet');
+  overlay.classList.add('show');
+  sheet.classList.add('show');
+
+  // Update active reminder count
+  const active = state.reminders.filter(r => r.active).length;
+  document.getElementById('moreReminderCount').textContent = active + ' active';
+
+  // If target page specified, navigate there and close sheet
+  if (target) {
+    closeMoreSheet();
+    // Brief delay for smooth UX
+    setTimeout(() => {
+      state.currentTab = target;
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      const pg = document.getElementById('page-' + target);
+      if (pg) pg.classList.add('active');
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('mainContent').scrollTop = 0;
+      renderCurrentTab(target);
+    }, 150);
+  }
+};
+
+window.closeMoreSheet = function() {
+  document.getElementById('moreSheetOverlay').classList.remove('show');
+  document.getElementById('moreSheet').classList.remove('show');
+};
 
 // ================================================================
 //  DASHBOARD
@@ -498,7 +580,7 @@ function renderCurrentTab(tab) {
 function renderDashboard() {
   const now = new Date();
   const h   = now.getHours();
-  const name = currentUser?.displayName?.split(' ')[0] || 'there';
+  const name = currentUser?.displayName?.split(' ')[0] || state.profile.name.split(' ')[0] || 'there';
   const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 
   document.getElementById('heroDate').textContent =
@@ -508,7 +590,6 @@ function renderDashboard() {
   const latest = state.glucose[0];
   const trend  = getTrendData(state.glucose);
 
-  // Gauge
   if (latest) {
     const val   = latest.value;
     const pct   = Math.min(val / 400, 1);
@@ -524,29 +605,25 @@ function renderDashboard() {
     gStatus.textContent = lbl;
     gStatus.style.color = color;
     gStatus.style.background = color + '22';
-
     document.getElementById('gaugeTime').textContent = 'Last: ' + latest.time;
 
-    // Trend chip
     const trendEl = document.getElementById('trendChip');
     trendEl.textContent = trend.arrow + ' ' + trend.label;
     trendEl.style.color = trend.color;
 
-    // Action recommendation
-    const rec = getActionRecommendation(val);
-    const box = document.getElementById('actionBox');
-    box.style.background = rec.bg;
-    box.style.borderColor = rec.color;
+    const rec  = getActionRecommendation(val);
+    const box  = document.getElementById('actionBox');
+    box.style.background   = rec.bg;
+    box.style.borderColor  = rec.color;
     document.getElementById('actionIcon').textContent  = rec.icon;
     document.getElementById('actionTitle').textContent = rec.title;
     document.getElementById('actionDesc').textContent  = rec.desc;
     const ctaBtn = document.getElementById('actionCta');
     ctaBtn.textContent = rec.cta;
     ctaBtn.style.background = rec.color;
-    ctaBtn.onclick = () => eval(rec.ctaFn); // safe: controlled strings above
+    ctaBtn.onclick = () => eval(rec.ctaFn);
   }
 
-  // Goals progress
   const tc   = state.meals.reduce((s,m) => s + (m.carbs||0), 0);
   const ts   = state.meals.reduce((s,m) => s + (m.sugar||0), 0);
   const tcal = state.meals.reduce((s,m) => s + (m.calories||0), 0);
@@ -558,17 +635,15 @@ function renderDashboard() {
     document.getElementById(fillId).style.width = Math.min(val / max * 100, 100) + '%';
     document.getElementById(fillId).style.background = val > max ? 'var(--danger)' : color;
   }
-  setBar('carbsVal', 'carbsFill', tc,   g.carbs,    'g',    'var(--primary)');
-  setBar('sugarVal', 'sugarFill', ts,   g.sugar,    'g',    'var(--warning)');
-  setBar('calVal',   'calFill',   tcal, g.calories, 'kcal', 'var(--success)');
+  setBar('carbsVal','carbsFill', tc,   g.carbs,    'g',    'var(--primary)');
+  setBar('sugarVal','sugarFill', ts,   g.sugar,    'g',    'var(--warning)');
+  setBar('calVal',  'calFill',   tcal, g.calories, 'kcal', 'var(--success)');
 
   document.getElementById('statMeals').textContent    = state.meals.length;
   document.getElementById('statReadings').textContent = state.glucose.length;
 
-  // Mini trend chart (last 6 readings)
   renderMiniChart();
 
-  // Active reminders
   const active = state.reminders.filter(r => r.active);
   const card   = document.getElementById('dashRemindersCard');
   const list   = document.getElementById('dashRemindersList');
@@ -584,7 +659,7 @@ function renderDashboard() {
 }
 
 // ================================================================
-//  MINI TREND CHART (SVG sparkline)
+//  MINI TREND CHART
 // ================================================================
 function renderMiniChart() {
   const container = document.getElementById('miniTrendChart');
@@ -593,22 +668,19 @@ function renderMiniChart() {
     container.innerHTML = '<div style="text-align:center;color:var(--text-light);font-size:12px;padding:20px 0">Log 2+ readings to see trend</div>';
     return;
   }
-
   const W = 340, H = 70, PAD = 8;
-  const values = readings.map(r => r.value);
-  const minV   = Math.min(...values, 70);
-  const maxV   = Math.max(...values, 180);
-  const range  = maxV - minV || 1;
+  const values  = readings.map(r => r.value);
+  const minV    = Math.min(...values, 70);
+  const maxV    = Math.max(...values, 180);
+  const range   = maxV - minV || 1;
 
-  const pts = values.map((v, i) => {
-    const x = PAD + (i / (values.length - 1)) * (W - PAD * 2);
-    const y = H - PAD - ((v - minV) / range) * (H - PAD * 2);
-    return { x, y, v };
-  });
+  const pts = values.map((v, i) => ({
+    x: PAD + (i / (values.length - 1)) * (W - PAD * 2),
+    y: H - PAD - ((v - minV) / range) * (H - PAD * 2),
+    v,
+  }));
 
   const pathD = pts.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
-
-  // Reference lines
   const normalLowY  = H - PAD - ((70  - minV) / range) * (H - PAD * 2);
   const normalHighY = H - PAD - ((180 - minV) / range) * (H - PAD * 2);
 
@@ -619,17 +691,12 @@ function renderMiniChart() {
 
   container.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:${H}px;overflow:visible">
-      <!-- Normal zone shading -->
-      <rect x="${PAD}" y="${Math.max(normalHighY, PAD)}" width="${W - PAD*2}" height="${normalLowY - normalHighY}" fill="#10B98111" rx="2"/>
-      <!-- Reference lines -->
-      ${minV <= 70  ? `<line x1="${PAD}" x2="${W-PAD}" y1="${normalLowY}"  y2="${normalLowY}"  stroke="#EF444444" stroke-width="1" stroke-dasharray="4 4"/>` : ''}
-      ${maxV >= 180 ? `<line x1="${PAD}" x2="${W-PAD}" y1="${normalHighY}" y2="${normalHighY}" stroke="#F59E0B44" stroke-width="1" stroke-dasharray="4 4"/>` : ''}
-      <!-- Line -->
+      <rect x="${PAD}" y="${Math.max(normalHighY,PAD)}" width="${W-PAD*2}" height="${normalLowY-normalHighY}" fill="#10B98111" rx="2"/>
+      ${minV<=70  ? `<line x1="${PAD}" x2="${W-PAD}" y1="${normalLowY}"  y2="${normalLowY}"  stroke="#EF444444" stroke-width="1" stroke-dasharray="4 4"/>` : ''}
+      ${maxV>=180 ? `<line x1="${PAD}" x2="${W-PAD}" y1="${normalHighY}" y2="${normalHighY}" stroke="#F59E0B44" stroke-width="1" stroke-dasharray="4 4"/>` : ''}
       <path d="${pathD}" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-      <!-- Dots -->
       ${dots}
-    </svg>
-  `;
+    </svg>`;
 }
 
 // ================================================================
@@ -650,28 +717,22 @@ window.hideLogForm = function() {
 window.saveReading = async function() {
   const val = parseFloat(document.getElementById('bgInput').value);
   if (!val || val < 20 || val > 600) { showToast('Enter a valid value (20–600)', 'var(--danger)'); return; }
-
   const note      = document.getElementById('bgNote').value;
   const source    = document.getElementById('bgSource').value;
   const noteExtra = document.getElementById('bgNoteExtra').value.trim();
   const now       = new Date();
   const btn       = document.getElementById('saveReadingBtn');
-
   btn.innerHTML = '<span class="loading-spinner"></span>';
   btn.disabled  = true;
-
   const reading = {
     value: val, note, source, noteExtra,
     time: now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
-    date: now.toLocaleDateString(),
-    ts: now.getTime(),
+    date: now.toLocaleDateString(), ts: now.getTime(),
   };
-
   try {
     await saveReadingToFirestore(reading);
     hideLogForm();
-    renderGlucose();
-    renderDashboard();
+    renderGlucose(); renderDashboard();
     showToast('✅ Reading saved!');
     if (val < 55) triggerCriticalLow(val);
     else if (val < 70) showToast('⚠️ Low glucose! Eat 15g carbs now.', 'var(--danger)');
@@ -679,8 +740,7 @@ window.saveReading = async function() {
   } catch(e) {
     showToast('Error: ' + e.message, 'var(--danger)');
   } finally {
-    btn.innerHTML = 'Save';
-    btn.disabled  = false;
+    btn.innerHTML = 'Save'; btn.disabled = false;
   }
 };
 
@@ -691,9 +751,9 @@ function renderGlucose() {
     return;
   }
   hist.innerHTML = state.glucose.map(r => {
-    const c    = getBGColor(r.value);
-    const lbl  = getBGLabel(r.value);
-    const src  = r.source === 'cgm' ? '📡' : r.source === 'bgm' ? '🩸' : '✏️';
+    const c   = getBGColor(r.value);
+    const lbl = getBGLabel(r.value);
+    const src = r.source === 'cgm' ? '📡' : r.source === 'bgm' ? '🩸' : '✏️';
     return `
       <div class="card list-item mb10" style="padding:12px 14px">
         <div class="list-icon-box" style="background:${c}22">
@@ -705,21 +765,70 @@ function renderGlucose() {
           <div style="font-size:11px;color:var(--text-light)">${r.date} · ${r.time}</div>
         </div>
         <span class="badge" style="color:${c};background:${c}22">${lbl}</span>
-      </div>
-    `;
+      </div>`;
   }).join('');
 }
 
 // ================================================================
-//  DEVICES PAGE
+//  CONNECTIONS PAGE
 // ================================================================
-function renderDevices() {
-  // Just update UI based on state (live data comes from CGM interval)
-  updateDeviceUI();
+function renderConnections() {
+  updateConnectionsUI();
+  updateConnCountBadge();
 }
 
-function updateDeviceUI() {
+function updateConnectionsUI() {
   const d = state.devices;
+
+  // Update summary dots
+  function setDot(id, active) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', active);
+  }
+  setDot('sumDotFit',     d.fit.connected);
+  setDot('sumDotChecker', d.checker.connected);
+  setDot('sumDotBGM',     d.bgm.connected);
+  setDot('sumDotCGM',     d.cgm.connected);
+
+  // Google Fit
+  const fitBadge   = document.getElementById('fitBadge');
+  const fitBody    = document.getElementById('fitBody');
+  const fitConnected = document.getElementById('fitConnected');
+  if (d.fit.connected) {
+    fitBadge.textContent = 'Connected ✓';
+    fitBadge.className   = 'conn-badge connected';
+    fitBody.style.display = 'none';
+    fitConnected.style.display = 'block';
+    document.getElementById('fitSteps').textContent = d.fit.steps.toLocaleString();
+    document.getElementById('fitHR').textContent    = d.fit.hr;
+    document.getElementById('fitSleep').textContent  = d.fit.sleep + 'h';
+    document.getElementById('fitCal').textContent    = d.fit.activeCal;
+    document.getElementById('fitLastSync').textContent = d.fit.lastSync || 'Just now';
+  } else {
+    fitBadge.textContent = 'Not Connected';
+    fitBadge.className   = 'conn-badge';
+    fitBody.style.display = 'block';
+    fitConnected.style.display = 'none';
+  }
+
+  // Checker Instant
+  const checkerBadge     = document.getElementById('checkerBadge');
+  const checkerBody      = document.getElementById('checkerBody');
+  const checkerConnected = document.getElementById('checkerConnected');
+  if (d.checker.connected) {
+    checkerBadge.textContent = 'Connected ✓';
+    checkerBadge.className   = 'conn-badge connected';
+    checkerBody.style.display = 'none';
+    checkerConnected.style.display = 'block';
+    document.getElementById('checkerLiveVal').textContent  = d.checker.lastReading || '—';
+    document.getElementById('checkerLastRead').textContent = d.checker.lastRead || 'Just now';
+    document.getElementById('checkerTodayCount').textContent = d.checker.todayCount;
+  } else {
+    checkerBadge.textContent = 'Not Connected';
+    checkerBadge.className   = 'conn-badge';
+    checkerBody.style.display = 'block';
+    checkerConnected.style.display = 'none';
+  }
 
   // BGM
   const bgmBadge = document.getElementById('bgmBadge');
@@ -727,13 +836,13 @@ function updateDeviceUI() {
   const bgmInfo  = document.getElementById('bgmConnectedInfo');
   if (d.bgm.connected) {
     bgmBadge.textContent = 'Connected ✓';
-    bgmBadge.className   = 'device-badge connected';
+    bgmBadge.className   = 'conn-badge connected';
     bgmBody.style.display = 'none';
     bgmInfo.style.display = 'block';
     document.getElementById('bgmLastSync').textContent = d.bgm.lastSync || 'Just now';
   } else {
     bgmBadge.textContent  = 'Disconnected';
-    bgmBadge.className    = 'device-badge';
+    bgmBadge.className    = 'conn-badge';
     bgmBody.style.display = 'block';
     bgmInfo.style.display = 'none';
   }
@@ -744,7 +853,7 @@ function updateDeviceUI() {
   const cgmInfo  = document.getElementById('cgmConnectedInfo');
   if (d.cgm.connected) {
     cgmBadge.textContent = 'Streaming Live ✓';
-    cgmBadge.className   = 'device-badge connected';
+    cgmBadge.className   = 'conn-badge connected';
     cgmBody.style.display = 'none';
     cgmInfo.style.display = 'block';
     document.getElementById('cgmLiveVal').textContent   = d.cgm.liveValue || '—';
@@ -752,42 +861,116 @@ function updateDeviceUI() {
     document.getElementById('cgmBrand').textContent     = d.cgm.brand;
   } else {
     cgmBadge.textContent  = 'Disconnected';
-    cgmBadge.className    = 'device-badge';
+    cgmBadge.className    = 'conn-badge';
     cgmBody.style.display = 'block';
     cgmInfo.style.display = 'none';
   }
-
-  // Top bar connection status
-  const dot   = document.getElementById('connDot');
-  const label = document.getElementById('connLabel');
-  if (d.cgm.connected) {
-    dot.className   = 'conn-dot cgm-connected';
-    label.textContent = 'CGM Live';
-  } else if (d.bgm.connected) {
-    dot.className   = 'conn-dot connected';
-    label.textContent = 'BGM';
-  } else {
-    dot.className   = 'conn-dot disconnected';
-    label.textContent = 'No Device';
-  }
 }
 
+// ================================================================
+//  GOOGLE FIT
+// ================================================================
+window.connectGoogleFit = async function() {
+  showToast('🔄 Connecting to Google Fit...', 'var(--primary)');
+  await new Promise(r => setTimeout(r, 2000));
+  state.devices.fit.connected  = true;
+  state.devices.fit.steps      = Math.round(5000 + Math.random() * 5000);
+  state.devices.fit.hr         = Math.round(65 + Math.random() * 20);
+  state.devices.fit.sleep      = +(6 + Math.random() * 2).toFixed(1);
+  state.devices.fit.activeCal  = Math.round(300 + Math.random() * 300);
+  state.devices.fit.lastSync   = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  updateConnectionsUI();
+  updateConnCountBadge();
+  showToast('✅ Google Fit connected!', 'var(--success)');
+};
+
+window.disconnectGoogleFit = function() {
+  state.devices.fit.connected = false;
+  updateConnectionsUI();
+  updateConnCountBadge();
+  showToast('Google Fit disconnected', 'var(--text-med)');
+};
+
+// ================================================================
+//  CHECKER INSTANT
+// ================================================================
+window.connectChecker = async function() {
+  showToast('⚡ Pairing Checker Instant...', '#7C3AED');
+  await new Promise(r => setTimeout(r, 1800));
+  state.devices.checker.connected = true;
+  state.devices.checker.todayCount = 0;
+  updateConnectionsUI();
+  updateConnCountBadge();
+  showToast('✅ Checker Instant connected!', 'var(--success)');
+};
+
+window.disconnectChecker = function() {
+  state.devices.checker.connected = false;
+  updateConnectionsUI();
+  updateConnCountBadge();
+  showToast('Checker disconnected', 'var(--text-med)');
+};
+
+window.logCheckerReading = async function() {
+  const input = document.getElementById('checkerInput');
+  const val   = parseFloat(input.value);
+  if (!val || val < 20 || val > 600) { showToast('Enter valid reading', 'var(--danger)'); return; }
+  const color = getBGColor(val);
+  const label = getBGLabel(val);
+  document.getElementById('checkerResult').style.display = 'block';
+  document.getElementById('checkerResult').innerHTML = `
+    <div style="font-size:28px;font-weight:900;color:${color};font-family:'Syne',sans-serif">${val} mg/dL</div>
+    <div style="font-size:13px;font-weight:700;color:${color};margin:4px 0">${label}</div>
+    <div style="font-size:11px;color:var(--text-med)">Logged at ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+  `;
+  document.getElementById('checkerResult').style.background = color + '22';
+  document.getElementById('checkerResult').style.border = `1px solid ${color}`;
+  input.value = '';
+  await saveReadingToFirestore({
+    value: val, note: 'Random', source: 'checker', noteExtra: 'Checker Instant',
+    time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),
+    date: new Date().toLocaleDateString(), ts: Date.now(),
+  });
+  renderDashboard(); renderGlucose();
+  if (val < 55) triggerCriticalLow(val);
+  showToast('⚡ Reading logged!');
+};
+
+window.logCheckerReadingConnected = async function() {
+  const input = document.getElementById('checkerInputConnected');
+  const val   = parseFloat(input.value);
+  if (!val || val < 20 || val > 600) { showToast('Enter valid reading', 'var(--danger)'); return; }
+  state.devices.checker.lastReading = val;
+  state.devices.checker.lastRead    = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  state.devices.checker.todayCount  = (state.devices.checker.todayCount || 0) + 1;
+  input.value = '';
+  await saveReadingToFirestore({
+    value: val, note: 'Random', source: 'checker', noteExtra: 'Checker Instant',
+    time: state.devices.checker.lastRead,
+    date: new Date().toLocaleDateString(), ts: Date.now(),
+  });
+  updateConnectionsUI();
+  renderDashboard(); renderGlucose();
+  if (val < 55) triggerCriticalLow(val);
+  else if (val < 70) showToast('⚠️ Low! Eat 15g carbs.', 'var(--danger)');
+  else showToast('⚡ Reading saved!');
+};
+
+// ================================================================
+//  BGM / CGM DEVICE CONNECT
+// ================================================================
 window.connectDevice = async function(type) {
   const scanCard = document.getElementById('btScanCard');
   scanCard.style.display = 'block';
   document.getElementById(type === 'bgm' ? 'bgmBody' : 'cgmBody').style.display = 'none';
   showToast('🔵 Scanning for ' + type.toUpperCase() + '...', 'var(--primary)');
-
-  // Simulate Bluetooth scan (2.5 seconds)
   await new Promise(resolve => setTimeout(resolve, 2500));
-
   scanCard.style.display = 'none';
 
   if (type === 'bgm') {
     state.devices.bgm.connected = true;
     state.devices.bgm.lastSync  = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-    showToast('✅ BGM Connected! Reading synced.', 'var(--success)');
-    // Simulate a synced reading
+    showToast('✅ BGM Connected!', 'var(--success)');
     const syncedVal = Math.round(100 + Math.random() * 80);
     const now = new Date();
     await saveReadingToFirestore({
@@ -795,19 +978,18 @@ window.connectDevice = async function(type) {
       time: now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
       date: now.toLocaleDateString(), ts: now.getTime(),
     });
-    renderDashboard();
-    renderGlucose();
+    renderDashboard(); renderGlucose();
   } else {
     const brand = document.getElementById('cgmBrandSelect').value;
-    const brandName = { freestyle: 'FreeStyle Libre', dexcom: 'Dexcom G7', medtronic: 'Medtronic Guardian' }[brand];
+    const brandName = { freestyle:'FreeStyle Libre', dexcom:'Dexcom G7', medtronic:'Medtronic Guardian' }[brand];
     state.devices.cgm.connected = true;
     state.devices.cgm.brand     = brandName;
     state.devices.cgm.liveValue = Math.round(110 + Math.random() * 60);
     startCGMSimulation();
-    showToast('📡 ' + brandName + ' Connected! Live data streaming.', 'var(--success)');
+    showToast('📡 ' + brandName + ' Connected!', 'var(--success)');
   }
-
-  updateDeviceUI();
+  updateConnectionsUI();
+  updateConnCountBadge();
 };
 
 window.disconnectDevice = function(type) {
@@ -820,7 +1002,8 @@ window.disconnectDevice = function(type) {
     if (cgmIntervalId) { clearInterval(cgmIntervalId); cgmIntervalId = null; }
     showToast('CGM sensor disconnected', 'var(--text-med)');
   }
-  updateDeviceUI();
+  updateConnectionsUI();
+  updateConnCountBadge();
 };
 
 window.cancelScan = function() {
@@ -839,94 +1022,86 @@ function startCGMSimulation() {
     state.devices.cgm.liveValue  = newVal;
     state.devices.cgm.trend      = trendData.arrow;
     state.devices.cgm.trendLabel = trendData.label;
-
-    // Auto-save CGM reading every 5 min (simulated as every interval)
     const now = new Date();
     await saveReadingToFirestore({
       value: newVal, note: 'CGM Auto', source: 'cgm', noteExtra: state.devices.cgm.brand,
-      time: now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
+      time: now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),
       date: now.toLocaleDateString(), ts: now.getTime(),
     });
-    renderDashboard();
-    renderGlucose();
-    if (state.currentTab === 'devices') updateDeviceUI();
+    renderDashboard(); renderGlucose();
+    if (state.currentTab === 'connections') updateConnectionsUI();
     if (newVal < 55) triggerCriticalLow(newVal);
-    else if (newVal < 70) showToast('⚠️ CGM: Low glucose! Eat 15g carbs.', 'var(--danger)');
-    else if (newVal > 280) showToast('⚠️ CGM: High glucose detected.', 'var(--warning)');
-  }, 30000); // every 30 seconds in demo (real = 5 min)
+    else if (newVal < 70) showToast('⚠️ CGM: Low glucose!', 'var(--danger)');
+    else if (newVal > 280) showToast('⚠️ CGM: High glucose!', 'var(--warning)');
+  }, 30000);
 }
-
-window.saveManualReading = async function() {
-  const val = parseFloat(document.getElementById('manualBgInput').value);
-  if (!val || val < 20 || val > 600) { showToast('Enter valid reading', 'var(--danger)'); return; }
-  const now = new Date();
-  await saveReadingToFirestore({
-    value: val, note: 'Random', source: 'manual', noteExtra: 'Manual entry from Devices page',
-    time: now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
-    date: now.toLocaleDateString(), ts: now.getTime(),
-  });
-  document.getElementById('manualBgInput').value = '';
-  renderDashboard(); renderGlucose();
-  showToast('✅ Reading saved!');
-  if (val < 55) triggerCriticalLow(val);
-};
 
 // ================================================================
 //  BARCODE SCANNER
 // ================================================================
+const FOODS = [
+  {id:1,name:'Oatmeal',carbs:27,calories:150,sugar:1,gi:'Low',icon:'🥣'},
+  {id:2,name:'Apple',carbs:25,calories:95,sugar:19,gi:'Low',icon:'🍎'},
+  {id:3,name:'White Rice',carbs:45,calories:200,sugar:0,gi:'High',icon:'🍚'},
+  {id:4,name:'Grilled Chicken',carbs:0,calories:165,sugar:0,gi:'None',icon:'🍗'},
+  {id:5,name:'Orange Juice',carbs:26,calories:112,sugar:21,gi:'High',icon:'🍊'},
+  {id:6,name:'Whole Wheat Bread',carbs:24,calories:120,sugar:3,gi:'Med',icon:'🍞'},
+  {id:7,name:'Banana',carbs:27,calories:105,sugar:14,gi:'Med',icon:'🍌'},
+  {id:8,name:'Boiled Egg',carbs:0.6,calories:78,sugar:0.6,gi:'None',icon:'🥚'},
+  {id:9,name:'Greek Yogurt',carbs:9,calories:100,sugar:7,gi:'Low',icon:'🥛'},
+  {id:10,name:'Brown Rice',carbs:46,calories:215,sugar:0.7,gi:'Med',icon:'🍚'},
+  {id:11,name:'Sweet Potato',carbs:26,calories:112,sugar:5.4,gi:'Low',icon:'🍠'},
+  {id:12,name:'Salmon',carbs:0,calories:208,sugar:0,gi:'None',icon:'🐟'},
+  {id:13,name:'Broccoli',carbs:6,calories:31,sugar:1.5,gi:'Low',icon:'🥦'},
+  {id:14,name:'Avocado',carbs:9,calories:160,sugar:0.7,gi:'Low',icon:'🥑'},
+  {id:15,name:'Strawberries (1 cup)',carbs:11,calories:49,sugar:7,gi:'Low',icon:'🍓'},
+];
+
+const BARCODE_DB = {
+  '012345678901': {name:'Nature Valley Granola Bar',carbs:29,calories:190,sugar:12,icon:'🍫'},
+  '023000006948': {name:'Tropicana Orange Juice',carbs:26,calories:110,sugar:22,icon:'🍊'},
+  '038000138416': {name:'Special K Cereal',carbs:23,calories:120,sugar:4,icon:'🥣'},
+  '016000275010': {name:'Cheerios',carbs:29,calories:140,sugar:1,icon:'🥣'},
+  '040000494157': {name:'Snickers Bar',carbs:35,calories:280,sugar:27,icon:'🍬'},
+};
+
 window.startBarcodeScanner = async function() {
-  const placeholder = document.getElementById('barcodePlaceholder');
-  const scanner     = document.getElementById('barcodeScanner');
-  const video       = document.getElementById('scannerVideo');
-
   try {
-    scannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' },
-    });
-    video.srcObject = scannerStream;
-    placeholder.style.display = 'none';
-    scanner.style.display     = 'block';
-    showToast('📷 Camera active — scanning...', 'var(--primary)');
-
-    // Try BarcodeDetector API (Chrome/Edge on Android)
+    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    document.getElementById('scannerVideo').srcObject = scannerStream;
+    document.getElementById('barcodePlaceholder').style.display = 'none';
+    document.getElementById('barcodeScanner').style.display = 'block';
+    showToast('📷 Scanning...', 'var(--primary)');
     if ('BarcodeDetector' in window) {
-      const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'qr_code', 'upc_a', 'upc_e'] });
+      const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','qr_code','upc_a','upc_e'] });
       const scanLoop = async () => {
         if (!scannerStream) return;
         try {
-          const codes = await detector.detect(video);
-          if (codes.length > 0) {
-            handleBarcodeResult(codes[0].rawValue);
-            return;
-          }
+          const codes = await detector.detect(document.getElementById('scannerVideo'));
+          if (codes.length > 0) { handleBarcodeResult(codes[0].rawValue); return; }
         } catch(_) {}
         if (scannerStream) requestAnimationFrame(scanLoop);
       };
       requestAnimationFrame(scanLoop);
     } else {
-      // Fallback: simulate scan after 3s with demo barcode
       setTimeout(() => {
         if (scannerStream) {
           const demoCodes = Object.keys(BARCODE_DB);
           handleBarcodeResult(demoCodes[Math.floor(Math.random() * demoCodes.length)]);
         }
       }, 3000);
-      showToast('Demo mode: simulating scan...', 'var(--warning)');
     }
   } catch(e) {
-    placeholder.style.display = 'block';
-    scanner.style.display     = 'none';
-    showToast('Camera not available. Use manual entry.', 'var(--warning)');
+    document.getElementById('barcodePlaceholder').style.display = 'block';
+    document.getElementById('barcodeScanner').style.display = 'none';
+    showToast('Camera not available.', 'var(--warning)');
   }
 };
 
 window.stopBarcodeScanner = function() {
-  if (scannerStream) {
-    scannerStream.getTracks().forEach(t => t.stop());
-    scannerStream = null;
-  }
+  if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
   document.getElementById('barcodePlaceholder').style.display = 'block';
-  document.getElementById('barcodeScanner').style.display     = 'none';
+  document.getElementById('barcodeScanner').style.display = 'none';
 };
 
 function handleBarcodeResult(barcode) {
@@ -934,36 +1109,26 @@ function handleBarcodeResult(barcode) {
   const food   = BARCODE_DB[barcode];
   const result = document.getElementById('barcodeResult');
   result.style.display = 'block';
-
   if (food) {
     result.innerHTML = `
       <div style="font-size:22px;margin-bottom:6px">${food.icon}</div>
-      <div style="font-weight:700;color:var(--success);font-size:14px;margin-bottom:8px">✅ Found: ${food.name}</div>
+      <div style="font-weight:700;color:var(--success);font-size:14px;margin-bottom:8px">✅ ${food.name}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;font-size:12px;text-align:center">
         <div><div style="font-weight:800;color:var(--primary);font-size:16px">${food.carbs}g</div><div style="color:var(--text-light)">Carbs</div></div>
         <div><div style="font-weight:800;color:var(--success);font-size:16px">${food.calories}</div><div style="color:var(--text-light)">Calories</div></div>
         <div><div style="font-weight:800;color:var(--warning);font-size:16px">${food.sugar}g</div><div style="color:var(--text-light)">Sugar</div></div>
       </div>
-      <button class="btn-primary" onclick="addScannedFood('${food.name}',${food.carbs},${food.calories},${food.sugar})">+ Add to Meal Log</button>
-    `;
-    showToast('🎯 Barcode scanned!', 'var(--success)');
+      <button class="btn-primary" onclick="addScannedFood('${food.name}',${food.carbs},${food.calories},${food.sugar})">+ Add to Meals</button>`;
+    showToast('🎯 Scanned!', 'var(--success)');
   } else {
-    result.innerHTML = `
-      <div style="color:var(--text-med);font-size:13px;margin-bottom:8px">Barcode: <code style="font-family:'DM Mono',monospace">${barcode}</code></div>
-      <div style="color:var(--text-med);font-size:12px;margin-bottom:10px">Product not found in database. Enter details manually.</div>
-      <button class="btn-secondary" onclick="document.getElementById('barcodeResult').style.display='none'">Dismiss</button>
-    `;
+    result.innerHTML = `<div style="color:var(--text-med);font-size:13px;margin-bottom:8px">Barcode: <code>${barcode}</code></div><button class="btn-secondary" onclick="document.getElementById('barcodeResult').style.display='none'">Dismiss</button>`;
   }
 }
 
 window.addScannedFood = async function(name, carbs, calories, sugar) {
-  const meal = { description: name, carbs, calories, sugar, photoURL: '', ts: Date.now() };
-  await saveMealToFirestore(meal);
-  renderTodayLog();
-  updateFoodSummary();
-  renderDashboard();
+  await saveMealToFirestore({ description: name, carbs, calories, sugar, photoURL: '', ts: Date.now() });
+  renderTodayLog(); updateFoodSummary(); renderDashboard();
   document.getElementById('barcodeResult').style.display = 'none';
-  switchTab('food');
   showToast('🍽️ ' + name + ' added!');
 };
 
@@ -977,7 +1142,7 @@ window.handlePhotoSelect = function(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     const preview = document.getElementById('photoPreview');
-    preview.src   = ev.target.result;
+    preview.src = ev.target.result;
     preview.classList.add('show');
     document.getElementById('photoPlaceholder').style.display = 'none';
   };
@@ -987,24 +1152,21 @@ window.handlePhotoSelect = function(e) {
 window.addMeal = async function() {
   const description = document.getElementById('mealDescription').value.trim();
   if (!description) { showToast('Please enter a meal description', 'var(--danger)'); return; }
-
   const carbs    = parseFloat(document.getElementById('mealCarbs').value) || 0;
   const calories = parseFloat(document.getElementById('mealCal').value)   || 0;
   const sugar    = parseFloat(document.getElementById('mealSugar').value) || 0;
-
   const btn = document.getElementById('addMealBtn');
   btn.innerHTML = '<span class="loading-spinner"></span> Saving...';
   btn.disabled  = true;
-
   let photoURL = '';
   try {
     if (state.selectedPhotoFile) photoURL = await uploadMealPhoto(state.selectedPhotoFile) || '';
     await saveMealToFirestore({ description, carbs, calories, sugar, photoURL, ts: Date.now() });
     document.getElementById('mealDescription').value = '';
-    document.getElementById('mealCarbs').value       = '';
-    document.getElementById('mealCal').value         = '';
-    document.getElementById('mealSugar').value       = '';
-    document.getElementById('photoPreview').src      = '';
+    document.getElementById('mealCarbs').value = '';
+    document.getElementById('mealCal').value = '';
+    document.getElementById('mealSugar').value = '';
+    document.getElementById('photoPreview').src = '';
     document.getElementById('photoPreview').classList.remove('show');
     document.getElementById('photoPlaceholder').style.display = 'block';
     state.selectedPhotoFile = null;
@@ -1013,8 +1175,7 @@ window.addMeal = async function() {
   } catch(e) {
     showToast('Error: ' + e.message, 'var(--danger)');
   } finally {
-    btn.innerHTML = '🍽️ Log Meal';
-    btn.disabled  = false;
+    btn.innerHTML = '🍽️ Log Meal'; btn.disabled = false;
   }
 };
 
@@ -1031,22 +1192,17 @@ window.filterFoods = function() {
 window.quickAddFood = async function(id) {
   const food = FOODS.find(f => f.id === id);
   if (!food) return;
-  await saveMealToFirestore({
-    description: food.name, carbs: food.carbs, calories: food.calories, sugar: food.sugar,
-    photoURL: food.icon, ts: Date.now(),
-  });
+  await saveMealToFirestore({ description: food.name, carbs: food.carbs, calories: food.calories, sugar: food.sugar, photoURL: food.icon, ts: Date.now() });
   renderTodayLog(); updateFoodSummary(); renderDashboard();
   showToast('🍽️ ' + food.name + ' added!');
 };
 
 function renderFood() {
-  renderFoodList('');
-  renderTodayLog();
-  updateFoodSummary();
+  renderFoodList(''); renderTodayLog(); updateFoodSummary();
 }
 
 function renderFoodList(q) {
-  const list     = document.getElementById('foodList');
+  const list = document.getElementById('foodList');
   const filtered = FOODS.filter(f => f.name.toLowerCase().includes(q));
   list.innerHTML = filtered.map(food => {
     const gc = getGIColor(food.gi);
@@ -1065,8 +1221,7 @@ function renderFoodList(q) {
           </div>
         </div>
         <button onclick="quickAddFood(${food.id})" style="padding:9px 12px;background:var(--primary);color:#fff;border:none;border-radius:9px;font-weight:700;font-size:12px;cursor:pointer;font-family:'Manrope',sans-serif;min-height:40px">Add</button>
-      </div>
-    `;
+      </div>`;
   }).join('') || '<div class="card empty-state">No foods found.</div>';
 }
 
@@ -1087,16 +1242,15 @@ function renderTodayLog() {
         </div>
         <button onclick="removeMeal('${m.id}')" style="background:var(--danger-light);color:var(--danger);border:none;border-radius:7px;padding:5px 9px;font-weight:700;font-size:11px;cursor:pointer;font-family:'Manrope',sans-serif;min-height:32px">✕</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 function updateFoodSummary() {
-  const tc   = state.meals.reduce((s,m) => s + (m.carbs||0),    0);
-  const ts   = state.meals.reduce((s,m) => s + (m.sugar||0),    0);
+  const tc   = state.meals.reduce((s,m) => s + (m.carbs||0), 0);
+  const ts   = state.meals.reduce((s,m) => s + (m.sugar||0), 0);
   const tcal = state.meals.reduce((s,m) => s + (m.calories||0), 0);
-  document.getElementById('foodCarbs').textContent = fmt(tc)   + 'g';
-  document.getElementById('foodSugar').textContent = fmt(ts)   + 'g';
+  document.getElementById('foodCarbs').textContent = fmt(tc) + 'g';
+  document.getElementById('foodSugar').textContent = fmt(ts) + 'g';
   document.getElementById('foodCal').textContent   = fmt(tcal);
   document.getElementById('foodItems').textContent = state.meals.length;
 }
@@ -1105,11 +1259,11 @@ function updateFoodSummary() {
 //  GOALS
 // ================================================================
 const GOAL_FIELDS = [
-  { key:'carbs',        label:'Daily Carbohydrate Goal', unit:'g',     icon:'🌾', min:50,   max:400  },
-  { key:'sugar',        label:'Daily Sugar Limit',       unit:'g',     icon:'🍭', min:10,   max:100  },
-  { key:'calories',     label:'Daily Calorie Goal',      unit:'kcal',  icon:'🔥', min:1000, max:4000 },
-  { key:'targetBGLow',  label:'Target BG Low Threshold', unit:'mg/dL', icon:'📉', min:60,   max:100  },
-  { key:'targetBGHigh', label:'Target BG High Threshold',unit:'mg/dL', icon:'📈', min:140,  max:250  },
+  {key:'carbs',        label:'Daily Carbohydrate Goal',  unit:'g',     icon:'🌾',min:50,  max:400 },
+  {key:'sugar',        label:'Daily Sugar Limit',         unit:'g',     icon:'🍭',min:10,  max:100 },
+  {key:'calories',     label:'Daily Calorie Goal',        unit:'kcal',  icon:'🔥',min:1000,max:4000},
+  {key:'targetBGLow',  label:'Target BG Low Threshold',  unit:'mg/dL', icon:'📉',min:60,  max:100 },
+  {key:'targetBGHigh', label:'Target BG High Threshold', unit:'mg/dL', icon:'📈',min:140, max:250 },
 ];
 
 function renderGoals() {
@@ -1127,8 +1281,7 @@ function renderGoals() {
           oninput="updateGoalSlider('${f.key}','${f.unit}',this.value)" id="slider-${f.key}"/>
         <div class="slider-val" id="sliderVal-${f.key}">${state.goals[f.key]} ${f.unit}</div>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 window.updateGoalSlider = function(key, unit, val) {
@@ -1147,12 +1300,15 @@ window.saveGoals = async function() {
 // ================================================================
 //  REMINDERS
 // ================================================================
+const REMINDER_TYPES = {
+  Medication:'💊', Blood:'💉', Meal:'🍽️', Exercise:'🏃', Water:'💧', Other:'🔔',
+};
+
 function renderReminders() {
   const pills = document.getElementById('reminderTypePills');
   pills.innerHTML = Object.entries(REMINDER_TYPES).map(([k, ico]) => `
     <button class="type-pill ${state.selectedReminderType === k ? 'selected' : ''}"
-      onclick="selectReminderType('${k}')">${ico} ${k}</button>
-  `).join('');
+      onclick="selectReminderType('${k}')">${ico} ${k}</button>`).join('');
   renderRemindersList();
 }
 
@@ -1209,22 +1365,22 @@ function renderRemindersList() {
           <button class="delete-btn" onclick="deleteReminder('${r.id}')">Delete</button>
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 // ================================================================
 //  REPORT
 // ================================================================
 function renderReport() {
-  document.getElementById('reportDate').textContent  = new Date().toLocaleDateString();
-  document.getElementById('rptName').textContent     = currentUser?.displayName || 'Patient';
-  document.getElementById('rptEmail').textContent    = currentUser?.email || '—';
+  document.getElementById('reportDate').textContent = new Date().toLocaleDateString();
+  document.getElementById('rptName').textContent    = state.profile.name || currentUser?.displayName || 'Patient';
+  document.getElementById('rptEmail').textContent   = currentUser?.email || '—';
 
-  // Device info in report
   const deviceStr = [
-    state.devices.bgm.connected ? 'BGM (Bluetooth)' : null,
-    state.devices.cgm.connected ? ('CGM: ' + state.devices.cgm.brand) : null,
+    state.devices.bgm.connected     ? 'BGM'                      : null,
+    state.devices.cgm.connected     ? 'CGM: ' + state.devices.cgm.brand : null,
+    state.devices.fit.connected     ? 'Google Fit'               : null,
+    state.devices.checker.connected ? 'Checker Instant'          : null,
   ].filter(Boolean).join(', ') || 'Manual Entry';
   document.getElementById('rptDevices').textContent = deviceStr;
 
@@ -1235,7 +1391,6 @@ function renderReport() {
   const low   = gs.filter(r => r.value < 70).length;
   const inRange = gs.filter(r => r.value >= 70 && r.value <= 180).length;
   const tir   = total ? Math.round(inRange / total * 100) : 0;
-  // Estimated HbA1c from average BG (formula: eHbA1c = (avg + 46.7) / 28.7)
   const hba1c = total && avg ? ((avg + 46.7) / 28.7).toFixed(1) + '%' : '—';
 
   document.getElementById('rptTotal').textContent = total;
@@ -1245,11 +1400,10 @@ function renderReport() {
   document.getElementById('rptTIR').textContent   = total ? tir + '%' : '—';
   document.getElementById('rptGMI').textContent   = hba1c;
 
-  const tc   = state.meals.reduce((s,m) => s + (m.carbs||0),    0);
-  const ts   = state.meals.reduce((s,m) => s + (m.sugar||0),    0);
+  const tc   = state.meals.reduce((s,m) => s + (m.carbs||0), 0);
+  const ts   = state.meals.reduce((s,m) => s + (m.sugar||0), 0);
   const tcal = state.meals.reduce((s,m) => s + (m.calories||0), 0);
   const g    = state.goals;
-
   document.getElementById('rptCarbs').textContent     = fmt(tc)   + 'g';
   document.getElementById('rptSugar').textContent     = fmt(ts)   + 'g';
   document.getElementById('rptCal').textContent       = fmt(tcal) + ' kcal';
@@ -1264,7 +1418,7 @@ function renderReport() {
   tbody.innerHTML = gs.map(r => {
     const c   = getBGColor(r.value);
     const lbl = getBGLabel(r.value);
-    const src = r.source === 'cgm' ? '📡 CGM' : r.source === 'bgm' ? '🩸 BGM' : '✏️ Manual';
+    const src = r.source === 'cgm' ? '📡 CGM' : r.source === 'bgm' ? '🩸 BGM' : r.source === 'checker' ? '⚡ Checker' : '✏️ Manual';
     return `<tr>
       <td style="font-weight:800;color:${c};font-family:'DM Mono',monospace">${r.value}</td>
       <td><span class="badge" style="color:${c};background:${c}22">${lbl}</span></td>
@@ -1285,20 +1439,133 @@ window.generateReport = function() {
 };
 
 // ================================================================
+//  PROFILE
+// ================================================================
+function renderProfile() {
+  const p = state.profile;
+  document.getElementById('profileName').value          = p.name || '';
+  document.getElementById('profileAge').value           = p.age || '';
+  document.getElementById('profileWeight').value        = p.weight || '';
+  document.getElementById('profileHeight').value        = p.height || '';
+  document.getElementById('profileDoctor').value        = p.doctor || '';
+  document.getElementById('profileDoctorPhone').value   = p.doctorPhone || '';
+  document.getElementById('profileMedication').value    = p.medication || '';
+  document.getElementById('profileNotes').value         = p.notes || '';
+  document.getElementById('profileDisplayName').textContent = p.name || currentUser?.displayName || 'User';
+  document.getElementById('profileEmail').textContent   = currentUser?.email || '';
+
+  // Set diabetes type
+  const dtSelect = document.getElementById('profileDiabetesType');
+  if (dtSelect) dtSelect.value = p.diabetesType || '';
+
+  // Avatar
+  updateProfileAvatarUI();
+}
+
+function updateProfileAvatarUI() {
+  const p = state.profile;
+  const initial = (p.name || 'S').charAt(0).toUpperCase();
+
+  // Topbar avatar
+  document.getElementById('topbarAvatarInitial').textContent = initial;
+  if (p.avatarUrl) {
+    document.getElementById('topbarAvatarImg').src = p.avatarUrl;
+    document.getElementById('topbarAvatarImg').style.display = 'block';
+    document.getElementById('topbarAvatarInitial').style.display = 'none';
+  } else {
+    document.getElementById('topbarAvatarImg').style.display = 'none';
+    document.getElementById('topbarAvatarInitial').style.display = 'block';
+  }
+
+  // Profile page avatar
+  const profileImg = document.getElementById('profileAvatarImg');
+  const profileInitial = document.getElementById('profileAvatarInitial');
+  if (profileImg && profileInitial) {
+    profileInitial.textContent = initial;
+    if (p.avatarUrl) {
+      profileImg.src = p.avatarUrl;
+      profileImg.style.display = 'block';
+      profileInitial.style.display = 'none';
+    } else {
+      profileImg.style.display = 'none';
+      profileInitial.style.display = 'block';
+    }
+  }
+
+  // More sheet avatar
+  const moreImg      = document.getElementById('moreProfileImg');
+  const moreInitial  = document.getElementById('moreProfileInitial');
+  if (moreImg && moreInitial) {
+    if (p.avatarUrl) {
+      moreImg.src = p.avatarUrl;
+      moreImg.style.display = 'block';
+      moreInitial.style.display = 'none';
+    } else {
+      moreImg.style.display = 'none';
+      moreInitial.style.display = 'block';
+    }
+  }
+}
+
+window.triggerAvatarUpload = function() {
+  document.getElementById('avatarUploadInput').click();
+};
+
+window.handleAvatarUpload = function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    state.profile.avatarUrl = ev.target.result;
+    updateProfileAvatarUI();
+    showToast('📷 Photo updated!');
+  };
+  reader.readAsDataURL(file);
+};
+
+window.saveProfile = function() {
+  state.profile.name         = document.getElementById('profileName').value.trim() || state.profile.name;
+  state.profile.age          = document.getElementById('profileAge').value;
+  state.profile.weight       = document.getElementById('profileWeight').value;
+  state.profile.height       = document.getElementById('profileHeight').value;
+  state.profile.diabetesType = document.getElementById('profileDiabetesType').value;
+  state.profile.doctor       = document.getElementById('profileDoctor').value.trim();
+  state.profile.doctorPhone  = document.getElementById('profileDoctorPhone').value.trim();
+  state.profile.medication   = document.getElementById('profileMedication').value.trim();
+  state.profile.notes        = document.getElementById('profileNotes').value.trim();
+
+  // Update emergency contact with doctor
+  const emgContact = document.getElementById('emgDoctorContact');
+  if (emgContact && state.profile.doctor) {
+    emgContact.textContent = state.profile.doctor + ': ' + (state.profile.doctorPhone || 'N/A');
+  }
+
+  // Save to localStorage (demo)
+  try { localStorage.setItem('ss_profile', JSON.stringify(state.profile)); } catch(_) {}
+
+  document.getElementById('profileDisplayName').textContent = state.profile.name;
+  updateProfileAvatarUI();
+
+  const banner = document.getElementById('profileBanner');
+  banner.classList.add('show');
+  showToast('✅ Profile saved!');
+  setTimeout(() => banner.classList.remove('show'), 3000);
+};
+
+// ================================================================
 //  CRITICAL LOW ALERT
 // ================================================================
 function triggerCriticalLow(val) {
   document.getElementById('criticalLowVal').textContent = val;
   document.getElementById('criticalLowOverlay').classList.add('show');
-  if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500, 200, 500]);
+  if (navigator.vibrate) navigator.vibrate([500,200,500,200,500,200,500]);
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [0, 500, 1000, 1500].forEach(delay => {
+    [0,500,1000,1500].forEach(delay => {
       const osc = ctx.createOscillator();
       const g   = ctx.createGain();
       osc.connect(g); g.connect(ctx.destination);
-      osc.frequency.value = 880; g.gain.value = 0.3;
-      osc.type = 'square';
+      osc.frequency.value = 880; g.gain.value = 0.3; osc.type = 'square';
       osc.start(ctx.currentTime + delay / 1000);
       osc.stop(ctx.currentTime + delay / 1000 + 0.35);
     });
@@ -1313,10 +1580,10 @@ window.dismissCritical = function() {
 //  EMERGENCY
 // ================================================================
 window.showEmergency = function() {
+  closeMoreSheet();
   document.getElementById('emergencyOverlay').classList.add('show');
-  if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+  if (navigator.vibrate) navigator.vibrate([300,100,300]);
 };
-
 window.hideEmergency = function() {
   document.getElementById('emergencyOverlay').classList.remove('show');
 };
@@ -1325,11 +1592,24 @@ window.hideEmergency = function() {
 //  INIT
 // ================================================================
 function initApp() {
+  // Update profile avatar from saved data
+  updateProfileAvatarUI();
+
+  // Render all pages
   renderDashboard();
   renderGlucose();
-  renderDevices();
+  renderConnections();
   renderFood();
   renderGoals();
   renderReminders();
   renderReport();
+  renderProfile();
+  updateConnCountBadge();
 }
+
+// ================================================================
+//  BOOT: Run splash on load
+// ================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  runSplash();
+});
